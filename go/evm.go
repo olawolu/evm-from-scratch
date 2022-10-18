@@ -28,8 +28,58 @@ type TestCase struct {
 
 func evm(code []byte) []big.Int {
 	var stack []big.Int
-
+	stack = execute(code)
 	return stack
+}
+
+func execute(code []byte) []big.Int {
+	var stack []big.Int
+	var op, val byte
+	fmt.Println("code: ", code)
+
+	// iterate through opcodes
+	for i := 0; i < len(code); i += 2 {
+		if len(code) == 1 {
+			op, _ = interpret(code[i:])
+		} else {
+			op, val = interpret(code[i : i+2])
+		}
+
+		switch op {
+		case 0x00:
+			// STOP
+			return stack
+		case 0x60:
+			stack = push(stack, *new(big.Int).SetBytes([]byte{val}))
+		case 0x50:
+			// POP
+			stack = pop(stack)
+		default:
+			fmt.Println("unimplemented opcode: ", op)
+			return stack
+		}
+	}
+	return stack
+}
+
+func interpret(code []byte) (byte, byte) {
+	if len(code) != 1 {
+		return code[0], code[1]
+	}
+	return code[0], 0
+}
+
+func push(stack []big.Int, value big.Int) []big.Int {
+	if len(stack) > 0 {
+		stack = append([]big.Int{value}, stack...)
+	} else {
+		stack = append(stack, value)
+	}
+	return stack
+}
+
+func pop(stack []big.Int) []big.Int {
+	return stack[1:]
 }
 
 func main() {
@@ -45,7 +95,7 @@ func main() {
 	}
 
 	for index, test := range payload {
-		fmt.Printf("Test #%v of %v: %v\n", index + 1, len(payload), test.Name)
+		fmt.Printf("Test #%v of %v: %v\n", index+1, len(payload), test.Name)
 
 		bin, err := hex.DecodeString(test.Code.Bin)
 		if err != nil {
