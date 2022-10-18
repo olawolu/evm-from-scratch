@@ -35,7 +35,6 @@ func evm(code []byte) []big.Int {
 func execute(code []byte) []big.Int {
 	var stack []big.Int
 	var op, val byte
-	fmt.Println("code: ", code)
 
 	// iterate through opcodes
 	for i := 0; i < len(code); i += 2 {
@@ -54,6 +53,9 @@ func execute(code []byte) []big.Int {
 		case 0x50:
 			// POP
 			stack = pop(stack)
+		case 0x01:
+			// ADD
+			stack = add(stack)
 		default:
 			fmt.Println("unimplemented opcode: ", op)
 			return stack
@@ -80,6 +82,15 @@ func push(stack []big.Int, value big.Int) []big.Int {
 
 func pop(stack []big.Int) []big.Int {
 	return stack[1:]
+}
+
+func add(stack []big.Int) []big.Int {
+	var result big.Int
+	result.Add(&stack[0], &stack[1])
+	stack = pop(stack)
+	stack = pop(stack)
+	stack = push(stack, result)
+	return stack
 }
 
 func main() {
