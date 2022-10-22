@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"log"
 	"math/big"
+
+	"github.com/holiman/uint256"
 )
 
 type code struct {
@@ -26,72 +28,19 @@ type TestCase struct {
 	Expect expect
 }
 
-func evm(code []byte) []big.Int {
-	var stack []big.Int
-	stack = execute(code)
-	return stack
-}
-
-func execute(code []byte) []big.Int {
-	var stack []big.Int
-	var op, val byte
-
-	// iterate through opcodes
-	for i := 0; i < len(code); i += 2 {
-		if len(code) == 1 {
-			op, _ = interpret(code[i:])
-		} else {
-			op, val = interpret(code[i : i+2])
-		}
-
-		switch op {
-		case 0x00:
-			// STOP
-			return stack
-		case 0x60:
-			stack = push(stack, *new(big.Int).SetBytes([]byte{val}))
-		case 0x50:
-			// POP
-			stack = pop(stack)
-		case 0x01:
-			// ADD
-			stack = add(stack)
-		default:
-			fmt.Println("unimplemented opcode: ", op)
-			return stack
-		}
+func evm(code []byte) []uint256.Int {
+	ctx := &executionContext{
+		pc:   0,
+		stack: newStack(),
+		code:  code,
 	}
+
+	vm := NewVM(ctx)
+	stack := vm.execute(code)
+
 	return stack
 }
 
-func interpret(code []byte) (byte, byte) {
-	if len(code) != 1 {
-		return code[0], code[1]
-	}
-	return code[0], 0
-}
-
-func push(stack []big.Int, value big.Int) []big.Int {
-	if len(stack) > 0 {
-		stack = append([]big.Int{value}, stack...)
-	} else {
-		stack = append(stack, value)
-	}
-	return stack
-}
-
-func pop(stack []big.Int) []big.Int {
-	return stack[1:]
-}
-
-func add(stack []big.Int) []big.Int {
-	var result big.Int
-	result.Add(&stack[0], &stack[1])
-	stack = pop(stack)
-	stack = pop(stack)
-	stack = push(stack, result)
-	return stack
-}
 
 func main() {
 	content, err := ioutil.ReadFile("../evm.json")
@@ -113,13 +62,15 @@ func main() {
 			log.Fatal("Error during hex.DecodeString(): ", err)
 		}
 
-		var expectedStack []big.Int
+		var expectedStack []uint256.Int
+		var in = new(uint256.Int)
 		for _, s := range test.Expect.Stack {
 			i, ok := new(big.Int).SetString(s, 0)
 			if !ok {
 				log.Fatal("Error during big.Int.SetString(): ", err)
 			}
-			expectedStack = append(expectedStack, *i)
+			in.SetFromBig(i)
+			expectedStack = append(expectedStack, *in)
 		}
 
 		// Note: as the test cases get more complex, you'll need to modify this
@@ -144,7 +95,7 @@ func main() {
 	}
 }
 
-func toStrings(stack []big.Int) []string {
+func toStrings(stack []uint256.Int) []string {
 	var strings []string
 	for _, s := range stack {
 		strings = append(strings, s.String())
