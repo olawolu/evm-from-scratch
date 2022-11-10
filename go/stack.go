@@ -31,8 +31,8 @@ func (s *stackStruct) pop() uint256.Int {
 	return val
 }
 
-func (s *stackStruct) peek() uint256.Int {
-	return s.data[0]
+func (s *stackStruct) peek() *uint256.Int {
+	return &s.data[0]
 }
 
 func (s *stackStruct) peekN(n int64) uint256.Int {
@@ -41,4 +41,8 @@ func (s *stackStruct) peekN(n int64) uint256.Int {
 
 func (s *stackStruct) swap(n int64) {
 	s.data[0], s.data[n] = s.data[n], s.data[0]
+}
+
+func (s *stackStruct) Back(n int64) *uint256.Int {
+	return &s.data[n]
 }

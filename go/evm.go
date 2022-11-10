@@ -16,6 +16,24 @@ type code struct {
 	Asm string
 }
 
+type Transaction struct {
+	To       string
+	From     string
+	Origin   string
+	GasPrice string
+	Value    string
+	Data     string
+}
+
+type Block struct {
+	Coinbase   string
+	Timestamp  string
+	Number     string
+	Difficulty string
+	GasLimit   string
+	ChainId    string
+}
+
 type expect struct {
 	Stack   []string
 	Success bool
@@ -24,23 +42,30 @@ type expect struct {
 
 type TestCase struct {
 	Name   string
+	Tx     Transaction
 	Code   code
 	Expect expect
+	State  interface{}
+	Block  Block
 }
 
-func evm(code []byte) []uint256.Int {
+func evm(code []byte, t *Transaction, state interface{}, block *Block) ([]uint256.Int, string, bool) {
 	ctx := &executionContext{
-		pc:   0,
-		stack: newStack(),
-		code:  code,
+		pc:          0,
+		code:        code,
+		stack:       newStack(),
+		memory:      newMemory(),
+		state:       state,
+		block:       block,
+		storage:     newStorage(),
+		transaction: t,
 	}
 
 	vm := NewVM(ctx)
-	stack := vm.execute(code)
+	stack, returnData, success := vm.execute(code)
 
-	return stack
+	return stack, returnData, success
 }
-
 
 func main() {
 	content, err := ioutil.ReadFile("../evm.json")
@@ -63,6 +88,8 @@ func main() {
 		}
 
 		var expectedStack []uint256.Int
+		var expectedReturn string
+		var expectedSuccess bool
 		var in = new(uint256.Int)
 		for _, s := range test.Expect.Stack {
 			i, ok := new(big.Int).SetString(s, 0)
@@ -73,10 +100,13 @@ func main() {
 			expectedStack = append(expectedStack, *in)
 		}
 
+		expectedReturn = test.Expect.Return
+		expectedSuccess = test.Expect.Success
+
 		// Note: as the test cases get more complex, you'll need to modify this
 		// to pass down more arguments to the evm function and return more than
 		// just the stack.
-		stack := evm(bin)
+		stack, returnData, success := evm(bin, &test.Tx, test.State, &test.Block)
 
 		match := len(stack) == len(expectedStack)
 		if match {
@@ -91,6 +121,22 @@ func main() {
 			fmt.Printf("Got: %v\n\n", toStrings(stack))
 			fmt.Printf("Progress: %v/%v\n\n", index, len(payload))
 			log.Fatal("Stack mismatch")
+		}
+
+		if returnData != expectedReturn {
+			fmt.Printf("Instructions: \n%v\n", test.Code.Asm)
+			fmt.Printf("Expected: %v\n", expectedReturn)
+			fmt.Printf("Got: %v\n\n", returnData)
+			fmt.Printf("Progress: %v/%v\n\n", index, len(payload))
+			log.Fatal("Return data mismatch")
+		}
+
+		if success != expectedSuccess {
+			fmt.Printf("Instructions: \n%v\n", test.Code.Asm)
+			fmt.Printf("Expected: %v\n", expectedSuccess)
+			fmt.Printf("Got: %v\n\n", success)
+			fmt.Printf("Progress: %v/%v\n\n", index, len(payload))
+			log.Fatal("Success mismatch")
 		}
 	}
 }
